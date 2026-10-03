@@ -5,7 +5,7 @@ Each theme plays four rounds:
   2. Recall: Chinese, pause to say it in English yourself, then English
   3. Learn again
   4. Recall again
-  then shuffled bonus recall until the track reaches about 30 minutes
+  then shuffled bonus recall; rounds 4+ stop once the track reaches 30 minutes
 
 Outputs audio/<theme_id>.mp3 and audio/<theme_id>.json (timeline used by the
 app to show the current sentence). Requires ffmpeg and edge-tts.
@@ -121,7 +121,7 @@ def build_theme(theme, fake):
             add(clip(intro, VOICE_ZH, fake))
             add(silence(2, tmp))
             for i in order:
-                if bonus and t >= TARGET_SECS - 10:
+                if r >= 3 and t >= TARGET_SECS - 10:
                     break
                 en, zh = theme["sentences"][i]
                 timeline.append({"t": round(t, 2), "i": i, "round": r, "kind": kind})
