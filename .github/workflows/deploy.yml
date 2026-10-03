@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -38,6 +38,16 @@ jobs:
 
       - name: Build 30-minute practice tracks
         run: python scripts/build_audio.py
+
+      - name: Save audio to the audio-build branch
+        run: |
+          mkdir /tmp/audio-out && cp audio/* /tmp/audio-out/
+          cd /tmp/audio-out
+          git init -q -b audio-build
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add . && git commit -q -m "Audio built from ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" audio-build
 
       - name: Collect site files
         run: |
