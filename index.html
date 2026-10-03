@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Penny 生活英文</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="生活英文">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root {
+    --bg: #f7f5f0; --card: #ffffff; --text: #1f2328; --muted: #6b6f76;
+    --accent: #2f6fde; --accent-soft: #e6eefc; --done: #2e8b57; --line: #e4e1da;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a; --card: #1f2226; --text: #eceef0; --muted: #9aa0a6;
+      --accent: #6ea0ff; --accent-soft: #24324a; --done: #5cc48a; --line: #2e3237;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.5 -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", sans-serif;
+    padding: env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 24px);
+  }
+  main { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 20px 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 20px; font-size: 15px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .theme { display: flex; align-items: center; gap: 12px; cursor: pointer; width: 100%;
+    text-align: left; font: inherit; color: inherit; }
+  .theme .info { flex: 1; }
+  .theme .title { font-weight: 600; font-size: 18px; }
+  .theme .sub { color: var(--muted); font-size: 14px; }
+  .theme .go { color: var(--accent); font-size: 28px; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .bar > i { display: block; height: 100%; background: var(--done); }
+  button { font: inherit; }
+  .back { background: none; border: 0; color: var(--accent); padding: 12px 0; font-size: 17px; cursor: pointer; }
+  .now { text-align: center; padding: 24px 16px; }
+  .round { color: var(--accent); font-size: 14px; font-weight: 600; letter-spacing: .5px; }
+  .en { font-size: 26px; font-weight: 600; margin: 10px 0 6px; line-height: 1.3; }
+  .zh { color: var(--muted); font-size: 18px; }
+  .controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 18px 0 8px; }
+  .controls button {
+    border: 0; border-radius: 50%; width: 56px; height: 56px; cursor: pointer;
+    background: var(--accent-soft); color: var(--accent); font-size: 20px;
+  }
+  .controls .play { width: 76px; height: 76px; background: var(--accent); color: #fff; font-size: 30px; }
+  .time { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .note { color: var(--muted); font-size: 13px; text-align: center; margin: 8px 0 0; }
+  .list h2 { font-size: 17px; margin: 20px 0 8px; }
+  .row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row.current { background: var(--accent-soft); margin: 0 -16px; padding: 12px 16px; }
+  .row .txt { flex: 1; cursor: pointer; }
+  .row .e { font-weight: 500; }
+  .row .c { color: var(--muted); font-size: 15px; }
+  .row label { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .row input { width: 20px; height: 20px; accent-color: var(--done); }
+  .row.learned .e { color: var(--done); }
+  .warn { background: #fff4d6; color: #6b4e00; border-color: #f0dc9c; font-size: 14px; }
+  @media (prefers-color-scheme: dark) { .warn { background: #3a3320; color: #f0d98c; border-color: #5a4d25; } }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <section id="home">
+    <h1>生活英文・邊走邊聽</h1>
+    <p class="lead">每個主題約 30 分鐘。英文唸三次、中文一次，空白時跟著唸。鎖螢幕也會繼續播。</p>
+    <div id="themes"></div>
+  </section>
+
+  <section id="player" hidden>
+    <button class="back" id="back">‹ 主題</button>
+    <div class="card now">
+      <div class="round" id="round">準備開始</div>
+      <div class="en" id="en">按下播放</div>
+      <div class="zh" id="zh"></div>
+      <div class="controls">
+        <button id="prev" aria-label="上一句">⏮</button>
+        <button id="play" class="play" aria-label="播放">▶</button>
+        <button id="next" aria-label="下一句">⏭</button>
+      </div>
+      <input type="range" id="seek" min="0" max="100" value="0" step="1" aria-label="進度">
+      <div class="time"><span id="cur">0:00</span><span id="dur">0:00</span></div>
+      <p class="note" id="note"></p>
+    </div>
+    <div class="card warn" id="nomp3" hidden>
+      音檔還沒產生，先用手機內建語音朗讀。這個模式下螢幕要保持亮著。
+    </div>
+    <div class="card list">
+      <h2 id="listTitle"></h2>
+      <div id="rows"></div>
+    </div>
+  </section>
+</main>
+
+<audio id="audio" preload="metadata"></audio>
+
+<script>
+const ROUND_NAMES = ["第一輪・跟著唸", "第二輪・聽中文說英文", "第三輪・再跟著唸", "第四輪・聽中文說英文", "加強練習・順序打亂"];
+const $ = id => document.getElementById(id);
+const audio = $("audio");
+let themes = [], theme = null, meta = null, speech = null, currentIdx = -1;
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const learned = id => new Set(store.get("learned:" + id, []));
+const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+
+async function init() {
+  themes = (await (await fetch("data/themes.json")).json()).themes;
+  renderHome();
+  if (location.hash.slice(1)) openTheme(location.hash.slice(1));
+}
+
+function renderHome() {
+  $("themes").innerHTML = "";
+  for (const t of themes) {
+    const done = learned(t.id).size, total = t.sentences.length;
+    const btn = document.createElement("button");
+    btn.className = "card theme";
+    btn.innerHTML = `<div class="info"><div class="title"></div><div class="sub"></div>
+      <div class="bar"><i style="width:${done / total * 100}%"></i></div></div><div class="go">▶</div>`;
+    btn.querySelector(".title").textContent = t.title;
+    btn.querySelector(".sub").textContent = `${t.subtitle}・已背熟 ${done}/${total}`;
+    btn.onclick = () => openTheme(t.id);
+    $("themes").appendChild(btn);
+  }
+}
+
+async function openTheme(id) {
+  theme = themes.find(t => t.id === id);
+  if (!theme) return;
+  location.hash = id;
+  stopAll();
+  $("home").hidden = true; $("player").hidden = false; window.scrollTo(0, 0);
+  $("listTitle").textContent = `${theme.title}（${theme.sentences.length} 句）`;
+  currentIdx = -1;
+  showSentence(null);
+  renderRows();
+
+  meta = null;
+  try {
+    const r = await fetch(`audio/${id}.json`);
+    if (r.ok) meta = await r.json();
+  } catch {}
+  $("nomp3").hidden = !!meta;
+  if (meta) {
+    audio.src = `audio/${id}.mp3`;
+    audio.currentTime = 0;
+    const pos = store.get("pos:" + id, 0);
+    audio.addEventListener("loadedmetadata", () => { if (pos > 5 && pos < meta.duration - 5) audio.currentTime = pos; }, { once: true });
+    $("dur").textContent = fmt(meta.duration);
+    $("seek").max = Math.round(meta.duration);
+    $("note").textContent = store.get("pos:" + id, 0) > 5 ? "會從上次停下的地方繼續" : "";
+    setupMediaSession();
+  } else {
+    audio.removeAttribute("src");
+    $("dur").textContent = "--"; $("note").textContent = "";
+  }
+  updatePlayButton();
+}
+
+function renderRows() {
+  const set = learned(theme.id);
+  $("rows").innerHTML = "";
+  theme.sentences.forEach(([en, zh], i) => {
+    const row = document.createElement("div");
+    row.className = "row" + (set.has(i) ? " learned" : "") + (i === currentIdx ? " current" : "");
+    row.innerHTML = `<div class="txt"><div class="e"></div><div class="c"></div></div>
+      <label><input type="checkbox"${set.has(i) ? " checked" : ""}>背熟</label>`;
+    row.querySelector(".e").textContent = en;
+    row.querySelector(".c").textContent = zh;
+    row.querySelector(".txt").onclick = () => jumpTo(i);
+    row.querySelector("input").onchange = e => {
+      const s = learned(theme.id);
+      e.target.checked ? s.add(i) : s.delete(i);
+      store.set("learned:" + theme.id, [...s]);
+      row.classList.toggle("learned", e.target.checked);
+    };
+    $("rows").appendChild(row);
+  });
+}
+
+function showSentence(entry) {
+  if (!entry) { $("round").textContent = "準備開始"; $("en").textContent = "按下播放"; $("zh").textContent = ""; return; }
+  const [en, zh] = theme.sentences[entry.i];
+  $("round").textContent = ROUND_NAMES[Math.min(entry.round, ROUND_NAMES.length - 1)];
+  $("en").textContent = en; $("zh").textContent = zh;
+  if (entry.i !== currentIdx) {
+    currentIdx = entry.i;
+    document.querySelectorAll(".row").forEach((r, i) => r.classList.toggle("current", i === currentIdx));
+    if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: en, artist: zh, album: theme.title });
+  }
+}
+
+function entryAt(t) {
+  const tl = meta.timeline;
+  let lo = 0, hi = tl.length - 1, ans = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (tl[m].t <= t) { ans = m; lo = m + 1; } else hi = m - 1; }
+  return ans;
+}
+
+audio.addEventListener("timeupdate", () => {
+  if (!meta) return;
+  const t = audio.currentTime;
+  $("cur").textContent = fmt(t);
+  $("seek").value = Math.round(t);
+  const k = entryAt(t);
+  showSentence(k >= 0 ? meta.timeline[k] : null);
+  store.set("pos:" + theme.id, t);
+});
+audio.addEventListener("play", updatePlayButton);
+audio.addEventListener("pause", updatePlayButton);
+audio.addEventListener("ended", () => { store.set("pos:" + theme.id, 0); updatePlayButton(); });
+$("seek").addEventListener("input", e => { if (meta) audio.currentTime = +e.target.value; });
+
+function step(dir) {
+  if (speech) { speech.skip(dir); return; }
+  if (!meta) return;
+  const k = entryAt(audio.currentTime + 0.3);
+  const cur = meta.timeline[k];
+  let target = k + dir;
+  // "previous" restarts the current sentence if we're more than 2s into it
+  if (dir < 0 && cur && audio.currentTime - cur.t > 2) target = k;
+  target = Math.max(0, Math.min(meta.timeline.length - 1, target));
+  audio.currentTime = meta.timeline[target].t;
+}
+
+function jumpTo(i) {
+  if (speech || !meta) { startSpeech(i); return; }
+  const now = entryAt(audio.currentTime);
+  const round = now >= 0 ? meta.timeline[now].round : 0;
+  const hit = meta.timeline.find(e => e.round === round && e.i === i) || meta.timeline.find(e => e.i === i);
+  audio.currentTime = hit.t;
+  audio.play();
+}
+
+$("play").onclick = () => {
+  if (meta) { audio.paused ? audio.play() : audio.pause(); return; }
+  speech ? stopAll() : startSpeech(Math.max(0, currentIdx));
+};
+$("prev").onclick = () => step(-1);
+$("next").onclick = () => step(1);
+$("back").onclick = () => { stopAll(); history.replaceState(null, "", location.pathname); $("player").hidden = true; $("home").hidden = false; renderHome(); };
+
+function updatePlayButton() {
+  const playing = meta ? !audio.paused : !!speech;
+  $("play").textContent = playing ? "⏸" : "▶";
+  $("play").setAttribute("aria-label", playing ? "暫停" : "播放");
+}
+
+function setupMediaSession() {
+  if (!("mediaSession" in navigator)) return;
+  const ms = navigator.mediaSession;
+  ms.metadata = new MediaMetadata({ title: theme.title, artist: "Penny 生活英文", artwork: [{ src: "icon-512.png", sizes: "512x512", type: "image/png" }] });
+  ms.setActionHandler("play", () => audio.play());
+  ms.setActionHandler("pause", () => audio.pause());
+  ms.setActionHandler("previoustrack", () => step(-1));
+  ms.setActionHandler("nexttrack", () => step(1));
+  try {
+    ms.setActionHandler("seekbackward", () => { audio.currentTime -= 10; });
+    ms.setActionHandler("seekforward", () => { audio.currentTime += 10; });
+  } catch {}
+}
+
+function stopAll() {
+  audio.pause();
+  if (speech) { speech.cancel(); speech = null; }
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  updatePlayButton();
+}
+
+// Fallback when MP3s are not built yet: speak with the phone's own voices.
+// Same pattern as round 1 (English x3 with pauses, then Chinese). Screen must stay on.
+function startSpeech(from) {
+  if (!("speechSynthesis" in window)) return;
+  stopAll();
+  let i = from, cancelled = false, timer = null;
+  const pick = lang => speechSynthesis.getVoices().find(v => v.lang.replace("_", "-").startsWith(lang));
+  const say = (text, lang) => new Promise(res => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang; const v = pick(lang); if (v) u.voice = v;
+    u.rate = lang === "en-US" ? 0.9 : 1;
+    u.onend = u.onerror = res;
+    speechSynthesis.speak(u);
+  });
+  const wait = ms => new Promise(res => { timer = setTimeout(res, ms); });
+  speech = {
+    cancel() { cancelled = true; clearTimeout(timer); speechSynthesis.cancel(); },
+    skip(dir) { const n = Math.max(0, Math.min(theme.sentences.length - 1, i + dir)); startSpeech(n); },
+  };
+  updatePlayButton();
+  (async () => {
+    for (; i < theme.sentences.length && !cancelled; i++) {
+      const [en, zh] = theme.sentences[i];
+      showSentence({ i, round: 0 });
+      for (let k = 0; k < 3 && !cancelled; k++) {
+        const t0 = Date.now();
+        await say(en, "en-US");
+        if (!cancelled) await wait(Math.max(2500, Date.now() - t0 + 1200));
+      }
+      if (cancelled) break;
+      await say(zh, "zh-TW");
+      if (!cancelled) await wait(2000);
+    }
+    if (!cancelled) { speech = null; updatePlayButton(); }
+  })();
+}
+
+init();
+</script>
+</body>
+</html>
