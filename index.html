@@ -13,12 +13,19 @@
   :root {
     --bg: #f7f5f0; --card: #ffffff; --text: #1f2328; --muted: #6b6f76;
     --accent: #2f6fde; --accent-soft: #e6eefc; --done: #2e8b57; --line: #e4e1da;
+    --warn-bg: #fff4d6; --warn-fg: #6b4e00; --warn-line: #f0dc9c;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #15171a; --card: #1f2226; --text: #eceef0; --muted: #9aa0a6;
       --accent: #6ea0ff; --accent-soft: #24324a; --done: #5cc48a; --line: #2e3237;
+      --warn-bg: #3a3320; --warn-fg: #f0d98c; --warn-line: #5a4d25; color-scheme: dark;
     }
+  }
+  :root[data-theme="dark"] {
+      --bg: #15171a; --card: #1f2226; --text: #eceef0; --muted: #9aa0a6;
+      --accent: #6ea0ff; --accent-soft: #24324a; --done: #5cc48a; --line: #2e3237;
+      --warn-bg: #3a3320; --warn-fg: #f0d98c; --warn-line: #5a4d25; color-scheme: dark;
   }
   * { box-sizing: border-box; }
   body {
@@ -66,8 +73,7 @@
   .row label { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; white-space: nowrap; }
   .row input { width: 20px; height: 20px; accent-color: var(--done); }
   .row.learned .e { color: var(--done); }
-  .warn { background: #fff4d6; color: #6b4e00; border-color: #f0dc9c; font-size: 14px; }
-  @media (prefers-color-scheme: dark) { .warn { background: #3a3320; color: #f0d98c; border-color: #5a4d25; } }
+  .warn { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-line); font-size: 14px; }
   [hidden] { display: none !important; }
 </style>
 </head>
