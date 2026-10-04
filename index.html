@@ -74,15 +74,51 @@
   .row input { width: 20px; height: 20px; accent-color: var(--done); }
   .row.learned .e { color: var(--done); }
   .warn { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-line); font-size: 14px; }
+  .run { display: grid; gap: 10px; }
+  .run-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .run-head h2 { font-size: 17px; margin: 0; }
+  .run-state { font-size: 13px; color: var(--muted); }
+  .run-state.on { color: var(--done); font-weight: 600; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .stats b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .stats span { font-size: 12px; color: var(--muted); }
+  .run-btns { display: flex; gap: 10px; }
+  .run-btns button { flex: 1; border: 0; border-radius: 12px; padding: 12px; font-size: 16px; font-weight: 600; cursor: pointer;
+    background: var(--accent-soft); color: var(--accent); }
+  .run-btns .go { background: var(--done); color: #fff; }
+  .run-msg { font-size: 13px; color: var(--muted); margin: 0; }
+  .runlog { display: grid; gap: 0; }
+  .runlog div { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line);
+    font-size: 14px; font-variant-numeric: tabular-nums; }
+  .runlog div:first-child { border-top: 0; }
+  .runlog .d { color: var(--muted); }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
+  <div class="card run" id="run">
+    <div class="run-head"><h2>跑步紀錄</h2><span class="run-state" id="runState">未開始</span></div>
+    <div class="stats">
+      <div><b id="runTime">0:00</b><span>時間</span></div>
+      <div><b id="runDist">0.00</b><span>公里</span></div>
+      <div><b id="runPace">--</b><span>配速 /公里</span></div>
+    </div>
+    <div class="run-btns">
+      <button id="runStart" class="go">開始跑步</button>
+      <button id="runPause" hidden>暫停</button>
+      <button id="runStop" hidden>結束</button>
+    </div>
+    <p class="run-msg" id="runMsg">跑步時螢幕要保持亮著，GPS 才會持續記錄。英文音檔可以同時播放。</p>
+  </div>
   <section id="home">
     <h1>生活英文・邊走邊聽</h1>
     <p class="lead">每個主題約 30 分鐘。英文唸三次、中文一次，空白時跟著唸。鎖螢幕也會繼續播。</p>
     <div id="themes"></div>
+    <div class="card" id="runHistory" hidden>
+      <div class="run-head"><h2>最近的跑步</h2></div>
+      <div class="runlog" id="runLog"></div>
+    </div>
   </section>
 
   <section id="player" hidden>
@@ -325,6 +361,128 @@ function startSpeech(from) {
     if (!cancelled) { speech = null; updatePlayButton(); }
   })();
 }
+
+// ---- Run tracker: GPS distance, time and pace. iOS pauses GPS when the
+// screen locks, so we hold a screen wake lock while running.
+const run = { status: "idle", startedAt: 0, elapsed: 0, dist: 0, last: null, watch: null, tick: null, lock: null };
+
+function haversine(a, b) {
+  const R = 6371000, rad = x => x * Math.PI / 180;
+  const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const runSecs = () => run.elapsed + (run.status === "running" ? (Date.now() - run.startedAt) / 1000 : 0);
+const paceText = (secs, m) => m < 50 ? "--" : fmt(secs / (m / 1000));
+
+function renderRun() {
+  const secs = runSecs();
+  $("runTime").textContent = secs >= 3600 ? Math.floor(secs / 3600) + ":" + fmt(secs % 3600).padStart(5, "0") : fmt(secs);
+  $("runDist").textContent = (run.dist / 1000).toFixed(2);
+  $("runPace").textContent = paceText(secs, run.dist);
+  const on = run.status === "running";
+  $("runState").textContent = { idle: "未開始", running: "記錄中", paused: "已暫停" }[run.status];
+  $("runState").classList.toggle("on", on);
+  $("runStart").hidden = on;
+  $("runStart").textContent = run.status === "paused" ? "繼續" : "開始跑步";
+  $("runPause").hidden = !on;
+  $("runStop").hidden = run.status === "idle";
+}
+
+function saveRunState() {
+  store.set("runActive", run.status === "idle" ? null : { elapsed: runSecs(), dist: run.dist, day: run.day });
+}
+
+function onPosition(p) {
+  const { latitude: lat, longitude: lon, accuracy } = p.coords;
+  if (accuracy > 35) { $("runMsg").textContent = `GPS 訊號較弱（誤差約 ${Math.round(accuracy)} 公尺），等待定位…`; return; }
+  const pt = { lat, lon, t: p.timestamp };
+  if (run.last) {
+    const d = haversine(run.last, pt), dt = (pt.t - run.last.t) / 1000;
+    if (d < 4) return;                    // GPS jitter while standing still
+    if (dt > 0 && d / dt > 9) { run.last = pt; return; } // faster than ~32 km/h: a bad fix
+    run.dist += d;
+  }
+  run.last = pt;
+  $("runMsg").textContent = "GPS 定位正常。跑步時請保持螢幕亮著。";
+  saveRunState();
+}
+
+async function holdScreen() {
+  try { run.lock = await navigator.wakeLock?.request("screen"); } catch {}
+}
+
+function startRun() {
+  if (!("geolocation" in navigator)) { $("runMsg").textContent = "這個瀏覽器不支援定位，沒辦法記錄距離。"; return; }
+  if (run.status === "idle") { run.elapsed = 0; run.dist = 0; run.day = Date.now(); }
+  run.last = null;
+  run.status = "running";
+  run.startedAt = Date.now();
+  run.watch = navigator.geolocation.watchPosition(onPosition, err => {
+    $("runMsg").textContent = err.code === 1
+      ? "沒有定位權限。請到 iPhone 設定 → 隱私權 → 定位服務 → Safari 網站，改成「使用 App 期間」。"
+      : "暫時抓不到 GPS，到空曠的地方會比較準。";
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  run.tick = setInterval(renderRun, 1000);
+  holdScreen();
+  renderRun();
+}
+
+function pauseRun() {
+  run.elapsed = runSecs();
+  run.status = "paused";
+  if (run.watch !== null) navigator.geolocation.clearWatch(run.watch);
+  run.watch = null;
+  clearInterval(run.tick);
+  run.lock?.release?.().catch(() => {}); run.lock = null;
+  saveRunState();
+  renderRun();
+}
+
+function stopRun() {
+  if (run.status === "running") pauseRun();
+  if (run.dist >= 50 || run.elapsed >= 60) {
+    const log = store.get("runLog", []);
+    log.unshift({ day: run.day || Date.now(), secs: Math.round(run.elapsed), m: Math.round(run.dist) });
+    store.set("runLog", log.slice(0, 30));
+  }
+  run.status = "idle"; run.elapsed = 0; run.dist = 0;
+  store.set("runActive", null);
+  $("runMsg").textContent = "已儲存這次跑步。";
+  renderRun();
+  renderRunLog();
+}
+
+function renderRunLog() {
+  const log = store.get("runLog", []);
+  $("runHistory").hidden = !log.length;
+  $("runLog").innerHTML = "";
+  for (const r of log.slice(0, 10)) {
+    const row = document.createElement("div");
+    const d = new Date(r.day);
+    row.innerHTML = `<span class="d"></span><span></span>`;
+    row.children[0].textContent = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    row.children[1].textContent = `${(r.m / 1000).toFixed(2)} 公里・${fmt(r.secs)}・配速 ${paceText(r.secs, r.m)}`;
+    $("runLog").appendChild(row);
+  }
+}
+
+$("runStart").onclick = startRun;
+$("runPause").onclick = pauseRun;
+$("runStop").onclick = stopRun;
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && run.status === "running") holdScreen();
+});
+
+(() => {
+  const saved = store.get("runActive", null);
+  if (saved) {
+    Object.assign(run, { status: "paused", elapsed: saved.elapsed, dist: saved.dist, day: saved.day });
+    $("runMsg").textContent = "上次的跑步還沒結束，按「繼續」接著記錄，或按「結束」儲存。";
+  }
+  renderRun();
+  renderRunLog();
+})();
 
 init();
 </script>
